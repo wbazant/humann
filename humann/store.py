@@ -34,6 +34,7 @@ import math
 import sys
 import gzip
 import bz2
+import sqlite3
 
 from . import config
 from . import utilities
@@ -103,7 +104,7 @@ class Alignments:
     Holds all of the alignments for all bugs
     """
     
-    def __init__(self,minimize_memory_use=None):
+    def __init__(self, minimize_memory_use = None):
         self.__total_scores_by_query={}
         self.__multiple_hits_queries={}
         self.__hits_by_query={}
@@ -115,14 +116,25 @@ class Alignments:
         self.__temp_alignments_file=None
         self.__temp_alignments_file_handle=None
         self.__delimiter="\t"
-        
+       
         if minimize_memory_use:
             self.__minimize_memory_use=True
+            self.__dbpath = utilities.unnamed_temp_file("alignments_db")
             logger.debug("Initialize Alignments class instance to minimize memory use")
         else:
             self.__minimize_memory_use=False
+            self.__dbpath = ":memory:"
             logger.debug("Initialize Alignments class instance to maximize memory use")
         
+        self.__conn = sqlite3.connect(self.__dbpath, isolation_level=None)
+        self.__conn.execute('''create table alignment (
+              query text not null,
+              bug text not null,
+              reference text not null,
+              score integer not null,
+              length integer not null
+            );''');
+
     def write_temp_alignments_file(self,query,bug,reference,score,normalized_reference_length):
         """
         Write an alignment to the temp alignments file, first create if needed
@@ -183,18 +195,15 @@ class Alignments:
         Delete the temp alignments file
         """
         
+        self.__conn.close()
         try:
-            self.__temp_alignments_file_handle.close()
-        except EnvironmentError:
-            pass
-        
-        try:
-            os.unlink(self.__temp_alignments_file)
+            if self.__dbpath != ':memory:':
+                os.unlink(self.__dbpath)
         except EnvironmentError:
             logger.warning("Unable to delete the temp alignments file")
         
-        self.__temp_alignments_file=None
-        self.__temp_alignments_file_handle=None
+        self.__conn=None
+        self.__dbpath=None
         
     def process_id_mapping(self,file):
         """
@@ -332,8 +341,10 @@ class Alignments:
         else:
             self.__scores_by_bug_gene[bug]={reference:normalized_score}
             
-        # write the information for the hit to the temp alignments file
-        # or store in memory depending on the memory use setting
+        # write the information for the hit
+        self.__conn.execute('''insert into alignment (query, bug, reference, score, length) values (?,?,?,?,?)''', [query, bug, reference, score, normalized_reference_length])
+
+        # deprecated TODO remove
         if self.__minimize_memory_use:
             self.write_temp_alignments_file(query, bug, reference, score, normalized_reference_length)
         else:
@@ -384,19 +395,7 @@ class Alignments:
         Return a list of all of the hits
         """
         
-        # Add the query to the hits
-        list=[]
-        # if the hits are stored in memory use the dictionary
-        if self.__hits_by_query:
-            for query in self.__hits_by_query:
-                for (bug,reference,score,length) in self.__hits_by_query[query]:
-                    list.append([query]+[bug,reference,score,length])
-        else:
-            # else read through the temp file for the hits
-            for (query,bug,reference,score,length) in self.read_temp_alignments_file(self.__total_scores_by_query):
-                list.append([query,bug,reference,score,length])
-                
-        return list
+        return [row for row in self.__conn.execute('select query, bug, reference, score, length from alignment')]
     
     def hits_for_gene(self,gene):
         """
@@ -487,6 +486,7 @@ class Alignments:
         self.__scores_by_bug_gene.clear()
         self.__gene_counts.clear()
         self.__bug_counts.clear()
+        self.__conn.close()
 
         
 class GeneScores:
