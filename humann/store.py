@@ -131,8 +131,8 @@ class Alignments:
               query text not null,
               bug text not null,
               reference text not null,
-              score integer not null,
-              length integer not null
+              score real not null,
+              length real not null
             );''');
 
     def write_temp_alignments_file(self,query,bug,reference,score,normalized_reference_length):
@@ -441,8 +441,42 @@ class Alignments:
         Add to the gene_scores store
         """
         
-        # Normalize by query hits for all queries with multiple hits
-        
+        # calculate the score per bug and gene
+        # for a single query result, it is 1/a.length
+        # if a query matches multiple bugs and genes, its score is distributed by weighted average
+        # scores from multiple queries are added up per bug and gene
+        # see unit tests for examples
+        result={}
+        resultAll={}
+        for bug, gene, score in self.__conn.execute('''
+              select bug, reference, sum(normalized_score_partial) as score from (
+                  select
+                    a.query,
+                    a.bug,
+                    a.reference,
+                    sum(a.score / a.length ) / (total_score_for_query) as normalized_score_partial
+                  from
+                  alignment a join (
+                    select query, sum(score) as total_score_for_query
+                    from alignment group by query
+                    ) as m
+                  where a.query = m.query
+                  group by a.bug, a.reference, a.query
+               ) group by bug, reference
+               order by bug, reference
+            '''):
+            if bug not in result:
+                result[bug]={}
+            result[bug][gene]=score
+            if gene not in resultAll:
+                resultAll[gene]=0
+            resultAll[gene]+=score
+        for bug in result:
+            gene_scores_store.add(result[bug], bug)
+
+        gene_scores_store.add(resultAll, "all")
+
+        # deprecated
         # process through the temp alignments file if the data is not stored in memory
         if not self.__hits_by_query:
             for (query,bug,reference,score,length) in self.read_temp_alignments_file(self.__multiple_hits_queries):
@@ -461,12 +495,12 @@ class Alignments:
             for gene in self.__scores_by_bug_gene[bug]:
                 all_gene_scores[gene]=all_gene_scores.get(gene,0)+self.__scores_by_bug_gene[bug][gene]
             # Add to the gene scores structure
-            gene_scores_store.add(self.__scores_by_bug_gene[bug],bug)
+            # REPLACED   gene_scores_store.add(self.__scores_by_bug_gene[bug],bug)
             total_gene_families_for_bug=len(self.__scores_by_bug_gene[bug])
             messages.append(bug + " : " + str(total_gene_families_for_bug) + " gene families")
              
         # add all gene scores to structure
-        gene_scores_store.add(all_gene_scores,"all")
+        # REPLACED gene_scores_store.add(all_gene_scores,"all")
         
         # print messages if in verbose mode
         message="\n".join(messages)

@@ -99,7 +99,7 @@ class TestAdvancedHumannStoreFunctions(unittest.TestCase):
         query1_sum=hit1_score+hit2_score
         gene_score=hit1_score/query1_sum/gene1_length
 
-        self.assertEqual(gene_scores_store.get_score("bug1","gene1"),gene_score)
+        self.assertAlmostEqual(gene_scores_store.get_score("bug1","gene1"),gene_score)
 
     def test_Alignments_compute_gene_scores_double_gene_double_query(self):
         """
