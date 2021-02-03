@@ -1025,11 +1025,15 @@ def main():
         if not config.bypass_translated_search:
             # Run translated search on UniRef database if unaligned reads exit
             if unaligned_reads_store.count_reads()>0:
+                #Disconnect the alignment store to save on peak memory when possible
+                alignments.disconnect()
+
                 translated_alignment_file = translated.alignment(config.protein_database, 
                     unaligned_reads_file_fasta)
         
                 start_time=timestamp_message("translated alignment",start_time)
         
+                alignments.reconnect()
                 # Determine which reads are unaligned
                 translated_unaligned_reads_file_fastq = translated.unaligned_reads(
                     unaligned_reads_store, translated_alignment_file, alignments)
