@@ -110,6 +110,9 @@ class SqliteStore:
         """
         Use the sqlite3 connection
         """
+        if self.__conn:
+            return
+
         if not self.__dbpath:
             store_name=type(self).__name__
             if self.__minimize_memory_use:
@@ -121,12 +124,13 @@ class SqliteStore:
         
         self.__conn = sqlite3.connect(self.__dbpath, isolation_level=None)
         
-    def execute(self, *args, **kwargs):
+    def execute(self, sql, *args):
         """
         Use the sqlite3 connection
         """
-        logger.debug("{0} calling execute:".format(type(self).__name__), *args, **kwargs)
-        return self.__conn.execute(*args, **kwargs)
+        if sql.startswith("select"): 
+          logger.debug("{0} store query:".format(type(self).__name__), sql, *args)
+        return self.__conn.execute(sql, *args)
 
     def clear(self):
         """
@@ -1137,10 +1141,17 @@ class PathwaysDatabase:
                 config.pathways_database_delimiter.join(self.__pathways_to_reactions[pathway]))
         return "\n".join(data)
     
-class Reads:
+class Reads(SqliteStore):
     """
     Holds all of the reads data to create a fasta file
     """
+    def __init__(self, file=None, **kwargs):
+        super().__init__(**kwargs)
+        self.connect()
+        self.execute('''create table read (
+              id text not null primary key,
+              sequence text not null
+            );''')
     
     def add(self, id, sequence):
         """
@@ -1148,11 +1159,7 @@ class Reads:
         >id
         sequence
         """
-        
-        if self.__minimize_memory_use:
-            self.__ids.add(id)
-        else:
-            self.__reads[id]=sequence
+        self.execute('insert or ignore into read (id, sequence) values (?,?)', [id, sequence])
             
     def process_file(self, file):
         """
@@ -1197,104 +1204,36 @@ class Reads:
         # Remove the temp fasta file if exists
         if temp_file:
             utilities.remove_file(temp_file)
-    
-    def __init__(self, file=None, minimize_memory_use=None):
-        """
-        Create initial data structures and load if file name provided
-        """
-        self.__reads={}
-        self.__ids=set()
-        self.__initial_read_count=0
-        self.__file=file
-        
-        if minimize_memory_use:
-            self.__minimize_memory_use=True
-            logger.debug("Initialize Reads class instance to minimize memory use")
-        else:
-            self.__minimize_memory_use=False
-            logger.debug("Initialize Reads class instance to maximize memory use")
               
-        if self.__file:
-            for (id,sequence) in self.process_file(file):
-                self.add(id, sequence)
-                self.__initial_read_count+=1
-                
-    def set_file(self, file):
-        """
-        Set the file to read sequences from
-        """
-        
-        self.__file=file
+    def add_from_fasta(self, fasta_path):
+        for (id,sequence) in self.process_file(fasta_path):
+            self.add(id, sequence)
 
     def remove_id(self, id):
         """
         Remove the id and sequence from the read structure
         """
-        if id in self.__reads:
-            del self.__reads[id]
-        elif id in self.__ids:
-            self.__ids.discard(id)
-                
-    def get_fasta(self, file=None):
+        self.execute('delete from read where id = ? or id = ?', [id, utilities.remove_length_annotation(id)])
+
+    def get_fasta(self):
         """ 
-        Return a string of the fasta file sequences stored or read from a file
+        Return a string of the fasta file sequences stored
         """
-        
-        if not file:
-            file=self.__file
-            
-        # use the stored reads if present
-        if self.__reads:
-            for id, sequence in self.__reads.items():
-                yield ">"+id+"\n"+sequence
-        else:
-            if file:
-                for id, sequence in self.process_file(file):
-                    # check for the id or the id without the length annotation
-                    if utilities.remove_length_annotation(id) in self.__ids or id in self.__ids:
-                        yield ">"+id+"\n"+sequence
-    
+        for row in self.execute('select id, sequence from read'):
+            yield ">{0}\n{1}".format(*row)
+
     def id_list(self):
         """
         Return a list of all of the fasta ids
         """
-        
-        if self.__reads:
-            return list(self.__reads.keys())
-        else:
-            return list(self.__ids)
+        return [row[0] for row in self.execute('select id from read')]
     
     def count_reads(self):
         """
         Return the total number of reads stored
         """
         
-        if self.__reads:
-            return len(self.__reads.keys())
-        else:
-            return len(self.__ids)
-    
-    def clear(self):
-        """
-        Clear all of the stored reads and ids
-        """
-        
-        self.__reads.clear()
-        self.__ids.clear()
-        
-    def set_initial_read_count(self,total):
-        """
-        Set the total number of reads from the original input file
-        """
-        
-        self.__initial_read_count=total
-        
-    def get_initial_read_count(self):
-        """
-        Get the total number of reads from the original input file
-        """
-        
-        return self.__initial_read_count
+        return self.execute("select count(*) from read").fetchone()[0]
          
 class Names:
     """ 

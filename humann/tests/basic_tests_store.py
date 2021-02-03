@@ -57,7 +57,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test the total number of expected ids are loaded
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file)
+        reads_store=store.Reads()
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check that the total number of expected reads are loaded
         self.assertEqual(len(reads_store.id_list()), cfg.small_fasta_file_total_sequences)
@@ -68,7 +69,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test the total number of expected reads counted
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file)
+        reads_store=store.Reads()
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check that the total number of expected reads are counted
         self.assertEqual(reads_store.count_reads(), cfg.small_fasta_file_total_sequences)
@@ -80,7 +82,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test with minimize memory use
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file, minimize_memory_use=True)
+        reads_store=store.Reads(minimize_memory_use=True)
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check that the total number of expected reads are counted
         self.assertEqual(reads_store.count_reads(), cfg.small_fasta_file_total_sequences)            
@@ -92,7 +95,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test the expected ids are loaded
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file)
+        reads_store=store.Reads()
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check the reads are printed correctly
         stored_fasta=[]
@@ -139,7 +143,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test with minimize memory use
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file, minimize_memory_use=True)
+        reads_store=store.Reads(minimize_memory_use=True)
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check the reads are printed correctly
         stored_fasta=[]
@@ -185,7 +190,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test the sequences are loaded
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file)
+        reads_store=store.Reads()
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check the reads are printed correctly
         stored_fasta=[]
@@ -229,7 +235,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test with minimize memory use
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file, minimize_memory_use=True)
+        reads_store=store.Reads(minimize_memory_use=True)
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # Check the reads are printed correctly
         stored_fasta=[]
@@ -271,7 +278,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Read class: Test the deleting of ids
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file)
+        reads_store=store.Reads()
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # delete all but one of the reads and check structure is empty
         id_list=reads_store.id_list()
@@ -288,7 +296,8 @@ class TestHumannStoreFunctions(unittest.TestCase):
         Test with minimial memory use
         """
         
-        reads_store=store.Reads(cfg.small_fasta_file, minimize_memory_use=True)
+        reads_store=store.Reads(minimize_memory_use=True)
+        reads_store.add_from_fasta(cfg.small_fasta_file)
         
         # delete all but one of the reads and check structure is empty
         id_list=reads_store.id_list()

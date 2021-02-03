@@ -379,12 +379,6 @@ def unaligned_reads(sam_alignment_file, alignments, unaligned_reads_store, keep_
     file_handle_write_unaligned.close()   
     file_handle_write_aligned.close()
     
-    # set the total number of queries
-    unaligned_reads_store.set_initial_read_count(len(query_ids))
-    
-    # set the unaligned reads file to read sequences from
-    unaligned_reads_store.set_file(unaligned_reads_file_fasta)
-    
     if write_picked_frames:
         file_handle_write_unaligned_frames.close()
 
