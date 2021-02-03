@@ -1019,7 +1019,7 @@ def main():
             logger.debug("Custom database is empty")
             reduced_aligned_reads_file = "Empty"
             unaligned_reads_file_fasta=args.input
-            unaligned_reads_store=store.Reads(unaligned_reads_file_fasta, minimize_memory_use=minimize_memory_use)
+            unaligned_reads_store.add_from_fasta(unaligned_reads_file_fasta)
     
         # Do not run if set to bypass translated search in config file
         if not config.bypass_translated_search:
@@ -1027,6 +1027,7 @@ def main():
             if unaligned_reads_store.count_reads()>0:
                 #Disconnect the alignment store to save on peak memory when possible
                 alignments.disconnect()
+                unaligned_reads_store.disconnect()
 
                 translated_alignment_file = translated.alignment(config.protein_database, 
                     unaligned_reads_file_fasta)
@@ -1034,6 +1035,7 @@ def main():
                 start_time=timestamp_message("translated alignment",start_time)
         
                 alignments.reconnect()
+                unaligned_reads_store.reconnect()
                 # Determine which reads are unaligned
                 translated_unaligned_reads_file_fastq = translated.unaligned_reads(
                     unaligned_reads_store, translated_alignment_file, alignments)

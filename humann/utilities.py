@@ -854,13 +854,7 @@ def estimate_unaligned_reads_stored(input_fastq, unaligned_store):
     Calculate an estimate of the percent of reads unaligned and stored
     """
 
-    # check if the total number of reads from the input file is stored
-    if not unaligned_store.get_initial_read_count():
-        # check files exist and are readable
-        file_exists_readable(input_fastq)
-        unaligned_store.set_initial_read_count(count_reads(input_fastq))
-
-    percent=unaligned_store.count_reads()/float(unaligned_store.get_initial_read_count()) * 100
+    percent=unaligned_store.count_reads()/float(count_reads(input_fastq)) * 100
 
     return format_float_to_string(percent)
 
