@@ -99,33 +99,82 @@ def normalized_gene_length(gene_length, read_length):
 
     return (abs(gene_length - read_length)+1)/1000.0
 
-class Alignments:
+class SqliteStore:
+    def __init__(self, minimize_memory_use = None):
+        self.__minimize_memory_use=minimize_memory_use
+        self.__dbpath = None
+        self.__conn = None
+        self.__conn_hidden = None
+
+    def connect(self):
+        """
+        Use the sqlite3 connection
+        """
+        if not self.__dbpath:
+            store_name=type(self).__name__
+            if self.__minimize_memory_use:
+                self.__dbpath = utilities.unnamed_temp_file(store_name + ".sqlite")
+                logger.debug("Initializing {0} store backed by a temporary file to minimize memory use".format(store_name))
+            else:
+                self.__dbpath = ":memory:"
+                logger.debug("Initializing {0} store in-memory".format(store_name))
+        
+        self.__conn = sqlite3.connect(self.__dbpath, isolation_level=None)
+        
+    def execute(self, *args, **kwargs):
+        """
+        Use the sqlite3 connection
+        """
+        logger.debug("{0} calling execute:".format(type(self).__name__), *args, **kwargs)
+        return self.__conn.execute(*args, **kwargs)
+
+    def clear(self):
+        """
+        Clear all of the stored data
+        """
+        
+        self.__conn.close()
+        self.__conn = None
+
+    def disconnect(self):
+        """
+        Release memory, if possible
+        Temporarily disable, but do not destroy, an in-memory store
+        """
+        
+        if self.__dbpath == ":memory:":
+            self.__conn_hidden = self.__conn
+        else:
+            self.__conn.close()
+        self.__conn = None
+
+    def reconnect(self):
+        """
+        Restore the object after a disconnect()
+        """
+        if self.__conn_hidden:
+            self.__conn = self.__conn_hidden
+            self.__conn_hidden = None
+        else:
+            self.connect()
+
+
+class Alignments(SqliteStore):
     """
     Holds all of the alignments for all bugs
     """
     
-    def __init__(self, minimize_memory_use = None):
-        self.__id_mapping={}   
-        
-        self.__delimiter="\t"
-       
-        if minimize_memory_use:
-            self.__minimize_memory_use=True
-            self.__dbpath = utilities.unnamed_temp_file("alignments_db")
-            logger.debug("Initialize Alignments class instance to minimize memory use")
-        else:
-            self.__minimize_memory_use=False
-            self.__dbpath = ":memory:"
-            logger.debug("Initialize Alignments class instance to maximize memory use")
-        
-        self.__conn = sqlite3.connect(self.__dbpath, isolation_level=None)
-        self.__conn.execute('''create table alignment (
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.connect()
+        self.execute('''create table alignment (
               query text not null,
               bug text not null,
               reference text not null,
               score real not null,
               length real not null
-            );''');
+            );''')
+        self.__id_mapping={}
         
     def process_id_mapping(self,file):
         """
@@ -243,56 +292,56 @@ class Alignments:
         normalized_reference_length=normalized_gene_length(reference_length, read_length)
             
         # write the information for the hit
-        self.__conn.execute('''insert into alignment (query, bug, reference, score, length) values (?,?,?,?,?)''', [query, bug, reference, score, normalized_reference_length])
+        self.execute('''insert into alignment (query, bug, reference, score, length) values (?,?,?,?,?)''', [query, bug, reference, score, normalized_reference_length])
 
     def count_bugs(self):
         """ 
         Return total number of bugs
         """
 
-        return self.__conn.execute("select count (distinct bug) from alignment").fetchone()[0]
+        return self.execute("select count (distinct bug) from alignment").fetchone()[0]
     
     def count_genes(self):
         """ 
         Return total number of genes
         """
 
-        return self.__conn.execute("select count (distinct reference) from alignment").fetchone()[0]
+        return self.execute("select count (distinct reference) from alignment").fetchone()[0]
             
     def counts_by_bug(self):
         """
         Return each bug and the total number of hits
         """
  
-        return "\n".join(["{0}: {1} hits".format(row[0], row[1]) for row in self.__conn.execute('select bug, count(*) from alignment group by bug')])
+        return "\n".join(["{0}: {1} hits".format(row[0], row[1]) for row in self.execute('select bug, count(*) from alignment group by bug')])
             
     def gene_list(self):
         """
         Return a list of all of the gene families
         """
         
-        return [row[0] for row in self.__conn.execute('select distinct reference from alignment')]
+        return [row[0] for row in self.execute('select distinct reference from alignment')]
     
     def bug_list(self):
         """
         Return a list of all of the bugs
         """
 
-        return [row[0] for row in self.__conn.execute('select distinct bug from alignment')]
+        return [row[0] for row in self.execute('select distinct bug from alignment')]
     
     def get_hit_list(self):
         """
         Return a list of all of the hits
         """
 
-        return [row for row in self.__conn.execute('select query, bug, reference, score, length from alignment')]
+        return [row for row in self.execute('select query, bug, reference, score, length from alignment')]
     
     def hits_for_gene(self,gene):
         """
         Return a list of all of the hits for a specific gene
         """
         
-        return [row for row in self.__conn.execute('select query, bug, reference, score, length from alignment where reference=?', [gene])]
+        return [row for row in self.execute('select query, bug, reference, score, length from alignment where reference=?', [gene])]
     
     def convert_alignments_to_gene_scores(self,gene_scores_store):
         """
@@ -307,7 +356,7 @@ class Alignments:
         # see unit tests for examples
         result={}
         resultAll={}
-        for bug, gene, score in self.__conn.execute('''
+        for bug, gene, score in self.execute('''
               select bug, reference, sum(normalized_score_partial) as score from (
                   select
                     a.query,
@@ -342,39 +391,6 @@ class Alignments:
         if config.verbose:
             print(message)
         logger.info("\n"+message)
-        
-    def clear(self):
-        """
-        Clear all of the stored data
-        """
-        
-        self.__conn.close()
-        self.__conn = None
-
-    def disconnect(self):
-        """
-        Release memory, if possible
-        Temporarily disable, but do not destroy, an in-memory store
-        """
-        
-        if self.__dbpath == ":memory:":
-            self.__conn__hidden = self.__conn
-        else:
-            self.__conn.close()
-        self.__conn = None
-
-    def reconnect(self):
-        """
-        Restore the object after a disconnect()
-        """
-        if self.__conn:
-            return
-        
-        if self.__dbpath == ":memory:":
-            self.__conn = self.__conn__hidden
-            del self.__conn__hidden
-        else:
-            self.__conn = sqlite3.connect(self.__dbpath, isolation_level=None)
 
 class GeneScores:
     """
