@@ -937,23 +937,6 @@ def main():
     # If id mapping is provided then process
     if args.id_mapping:
         alignments.process_id_mapping(args.id_mapping)
-    
-    # Load in the reactions database
-    reactions_database=None
-    if config.pathways_database_part1:
-        reactions_database=store.ReactionsDatabase(config.pathways_database_part1)
-    
-        message="Load pathways database part 1: " + config.pathways_database_part1
-        logger.info(message)
-    
-    # Load in the pathways database
-    pathways_database=store.PathwaysDatabase(config.pathways_database_part2, reactions_database)
-    
-    if config.pathways_database_part1:
-        message="Load pathways database part 2: " + config.pathways_database_part2
-    else:
-        message="Load pathways database: " + config.pathways_database_part2
-    logger.info(message)
 
     # Start timer
     start_time=time.time()
@@ -1131,6 +1114,24 @@ def main():
     # Clear all of the alignments data as they are no longer needed
     alignments.clear()
     
+    
+    # Load in the reactions database
+    reactions_database=None
+    if config.pathways_database_part1:
+        reactions_database=store.ReactionsDatabase(config.pathways_database_part1)
+    
+        message="Load pathways database part 1: " + config.pathways_database_part1
+        logger.info(message)
+    
+    # Load in the pathways database
+    pathways_database=store.PathwaysDatabase(config.pathways_database_part2, reactions_database)
+    
+    if config.pathways_database_part1:
+        message="Load pathways database part 2: " + config.pathways_database_part2
+    else:
+        message="Load pathways database: " + config.pathways_database_part2
+    logger.info(message)
+
     # Identify reactions and then pathways from the alignments
     message="Computing pathways abundance and coverage ..."
     logger.info(message)
