@@ -105,10 +105,13 @@ class SqliteStore:
         self.__dbpath = None
         self.__conn = None
         self.__conn_hidden = None
+        self.__is_within_transaction = False
+        self.__stateful_ops_since_commit = None
+
 
     def connect(self):
         """
-        Use the sqlite3 connection
+        Open the sqlite3 connection
         """
         if self.__conn:
             return
@@ -124,13 +127,24 @@ class SqliteStore:
         
         self.__conn = sqlite3.connect(self.__dbpath, isolation_level=None)
         
-    def execute(self, sql, *args):
+    def do(self, *args):
+        """
+        Run a stateful statement like add or delete
+        If within a transaction, commit and reopen every 100k operations
+        """
+        self.__conn.execute(*args)
+        if self.__is_within_transaction:
+            self.__stateful_ops_since_commit +=1
+            if self.__stateful_ops_since_commit % 100000 == 0:
+                self.__conn.execute("commit transaction")
+                self.__conn.execute("begin transaction")
+
+    def query(self, *args):
         """
         Use the sqlite3 connection
         """
-        if sql.startswith("select"): 
-          logger.debug("{0} store query:".format(type(self).__name__), sql, *args)
-        return self.__conn.execute(sql, *args)
+        logger.debug("{0} store query:".format(type(self).__name__), *args)
+        return self.__conn.execute(*args)
 
     def clear(self):
         """
@@ -162,8 +176,19 @@ class SqliteStore:
         else:
             self.connect()
 
+    def start_bulk_write(self):
+        self.__is_within_transaction = True
+        self.__stateful_ops_since_commit = 0
+        self.__conn.execute("begin transaction")
+
+    def end_bulk_write(self):
+        self.__conn.execute("commit transaction")
+        self.__is_within_transaction = False
+        self.__stateful_ops_since_commit = None
+
 
 class Alignments(SqliteStore):
+
     """
     Holds all of the alignments for all bugs
     """
@@ -171,7 +196,7 @@ class Alignments(SqliteStore):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.connect()
-        self.execute('''create table alignment (
+        self.do('''create table alignment (
               query text not null,
               bug text not null,
               reference text not null,
@@ -296,56 +321,56 @@ class Alignments(SqliteStore):
         normalized_reference_length=normalized_gene_length(reference_length, read_length)
             
         # write the information for the hit
-        self.execute('''insert into alignment (query, bug, reference, score, length) values (?,?,?,?,?)''', [query, bug, reference, score, normalized_reference_length])
+        self.do('insert into alignment (query, bug, reference, score, length) values (?,?,?,?,?)', [query, bug, reference, score, normalized_reference_length])
 
     def count_bugs(self):
         """ 
         Return total number of bugs
         """
 
-        return self.execute("select count (distinct bug) from alignment").fetchone()[0]
+        return self.query("select count (distinct bug) from alignment").fetchone()[0]
     
     def count_genes(self):
         """ 
         Return total number of genes
         """
 
-        return self.execute("select count (distinct reference) from alignment").fetchone()[0]
+        return self.query("select count (distinct reference) from alignment").fetchone()[0]
             
     def counts_by_bug(self):
         """
         Return each bug and the total number of hits
         """
  
-        return "\n".join(["{0}: {1} hits".format(row[0], row[1]) for row in self.execute('select bug, count(*) from alignment group by bug')])
+        return "\n".join(["{0}: {1} hits".format(row[0], row[1]) for row in self.query('select bug, count(*) from alignment group by bug')])
             
     def gene_list(self):
         """
         Return a list of all of the gene families
         """
         
-        return [row[0] for row in self.execute('select distinct reference from alignment')]
+        return [row[0] for row in self.query('select distinct reference from alignment')]
     
     def bug_list(self):
         """
         Return a list of all of the bugs
         """
 
-        return [row[0] for row in self.execute('select distinct bug from alignment')]
+        return [row[0] for row in self.query('select distinct bug from alignment')]
     
     def get_hit_list(self):
         """
         Return a list of all of the hits
         """
 
-        return [row for row in self.execute('select query, bug, reference, score, length from alignment')]
+        return [row for row in self.query('select query, bug, reference, score, length from alignment')]
     
     def hits_for_gene(self,gene):
         """
         Return a list of all of the hits for a specific gene
         """
         
-        return [row for row in self.execute('select query, bug, reference, score, length from alignment where reference=?', [gene])]
+        return [row for row in self.query('select query, bug, reference, score, length from alignment where reference=?', [gene])]
     
     def convert_alignments_to_gene_scores(self,gene_scores_store):
         """
@@ -360,7 +385,7 @@ class Alignments(SqliteStore):
         # see unit tests for examples
         result={}
         resultAll={}
-        for bug, gene, score in self.execute('''
+        for bug, gene, score in self.query('''
               select bug, reference, sum(normalized_score_partial) as score from (
                   select
                     a.query,
@@ -1148,7 +1173,7 @@ class Reads(SqliteStore):
     def __init__(self, file=None, **kwargs):
         super().__init__(**kwargs)
         self.connect()
-        self.execute('''create table read (
+        self.do('''create table read (
               id text not null primary key,
               sequence text not null
             );''')
@@ -1159,7 +1184,7 @@ class Reads(SqliteStore):
         >id
         sequence
         """
-        self.execute('insert or ignore into read (id, sequence) values (?,?)', [id, sequence])
+        self.do('insert or ignore into read (id, sequence) values (?,?)', [id, sequence])
             
     def process_file(self, file):
         """
@@ -1213,27 +1238,27 @@ class Reads(SqliteStore):
         """
         Remove the id and sequence from the read structure
         """
-        self.execute('delete from read where id = ? or id = ?', [id, utilities.remove_length_annotation(id)])
+        self.do('delete from read where id = ? or id = ?', [id, utilities.remove_length_annotation(id)])
 
     def get_fasta(self):
         """ 
         Return a string of the fasta file sequences stored
         """
-        for row in self.execute('select id, sequence from read'):
+        for row in self.query('select id, sequence from read'):
             yield ">{0}\n{1}".format(*row)
 
     def id_list(self):
         """
         Return a list of all of the fasta ids
         """
-        return [row[0] for row in self.execute('select id from read')]
+        return [row[0] for row in self.query('select id from read')]
     
     def count_reads(self):
         """
         Return the total number of reads stored
         """
         
-        return self.execute("select count(*) from read").fetchone()[0]
+        return self.query("select count(*) from read").fetchone()[0]
          
 class Names:
     """ 

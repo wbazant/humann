@@ -1193,3 +1193,33 @@ class TestHumannStoreFunctions(unittest.TestCase):
             alignments_store.reconnect()
 
             self.assertEqual(alignments_store.get_hit_list(), hits)
+
+            
+    def test_Alignments_bulk(self):
+        with self.subTest():
+            self._test_Alignments_bulk(minimize_memory_use = True)
+            self._test_Alignments_bulk(minimize_memory_use = False)
+
+    def _test_Alignments_bulk(self, **kwargs):
+        """
+        Alignments class: test transaction management
+        Try select within transaction, rollback, begin and end, and end without begin
+        """
+        with self.subTest("Checking transactions", **kwargs):
+            alignments_store=store.Alignments(**kwargs)
+            alignments_store.add("gene1", 1, "Q1", 0.01, "bug1",1)
+            hits=alignments_store.get_hit_list()
+
+            alignments_store.start_bulk_write()
+            alignments_store.add("gene2", 2, "Q2", 0.02, "bug2",2)
+            self.assertNotEqual(alignments_store.get_hit_list(), hits)
+            alignments_store.do("rollback transaction")
+            self.assertEqual(alignments_store.get_hit_list(), hits)
+
+            second_alignments_store=store.Alignments(**kwargs)
+            second_alignments_store.start_bulk_write()
+            second_alignments_store.add("gene1", 1, "Q1", 0.01, "bug1",1)
+            second_alignments_store.end_bulk_write()
+            self.assertEqual(alignments_store.get_hit_list(), hits)
+
+            self.assertRaises(BaseException, alignments_store.end_bulk_write)

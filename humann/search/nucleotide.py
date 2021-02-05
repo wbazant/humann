@@ -297,6 +297,8 @@ def unaligned_reads(sam_alignment_file, alignments, unaligned_reads_store, keep_
 
     # read through the file line by line
     # capture alignments and also write out unaligned reads for next step in processing
+    alignments.start_bulk_write()
+    unaligned_reads_store.start_bulk_write()
     line = file_handle_read.readline()
     query_ids=set()
     no_frames_found_count=0
@@ -378,6 +380,8 @@ def unaligned_reads(sam_alignment_file, alignments, unaligned_reads_store, keep_
     file_handle_read.close()
     file_handle_write_unaligned.close()   
     file_handle_write_aligned.close()
+    alignments.end_bulk_write()
+    unaligned_reads_store.end_bulk_write()
     
     if write_picked_frames:
         file_handle_write_unaligned_frames.close()
