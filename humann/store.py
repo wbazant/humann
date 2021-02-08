@@ -137,13 +137,14 @@ class SqliteStore:
             self.__stateful_ops_since_commit +=1
             if self.__stateful_ops_since_commit % 100000 == 0:
                 self.__conn.execute("commit transaction")
+                logger.debug("{0} store: committed 100k changes".format(type(self).__name__))
                 self.__conn.execute("begin transaction")
 
     def query(self, *args):
         """
         Use the sqlite3 connection
         """
-        logger.debug("{0} store query:".format(type(self).__name__), *args)
+        logger.debug("{0} store query: {1}".format(type(self).__name__, str(args)))
         return self.__conn.execute(*args)
 
     def clear(self):
@@ -342,7 +343,7 @@ class Alignments(SqliteStore):
         Return each bug and the total number of hits
         """
  
-        return "\n".join(["{0}: {1} hits".format(row[0], row[1]) for row in self.query('select bug, count(*) from alignment group by bug')])
+        return "\n".join(["{0}: {1} hits".format(row[0], row[1]) for row in self.query('select bug, count(*) as c from alignment group by bug order by -c')])
             
     def gene_list(self):
         """
@@ -416,7 +417,7 @@ class Alignments(SqliteStore):
 
         # Log a summary, and print if in verbose mode
         message="\n".join(["{0} : {1} gene families".format(bug, len(result[bug])) for bug in result])
-        message="Total gene families  : " +str(len(result))+"\n"+message
+        message="Total gene families  : " +str(sum([len(result[bug]) for bug in result]))+"\n"+message
         if config.verbose:
             print(message)
         logger.info("\n"+message)
