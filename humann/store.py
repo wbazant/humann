@@ -136,14 +136,12 @@ class SqliteStore:
             self.__stateful_ops_since_commit +=1
             if self.__stateful_ops_since_commit % 100000 == 0:
                 self.__conn.execute("commit transaction")
-                logger.debug("{0} store: committed 100k changes".format(type(self).__name__))
                 self.__conn.execute("begin transaction")
 
     def query(self, *args):
         """
         Use the sqlite3 connection
         """
-        logger.debug("{0} store query: {1}".format(type(self).__name__, str(args)))
         return self.__conn.execute(*args)
 
     def clear(self):
