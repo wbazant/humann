@@ -104,7 +104,6 @@ class SqliteStore:
         self.__minimize_memory_use=minimize_memory_use
         self.__dbpath = None
         self.__conn = None
-        self.__conn_hidden = None
         self.__is_within_transaction = False
         self.__stateful_ops_since_commit = None
 
@@ -154,28 +153,6 @@ class SqliteStore:
         
         self.__conn.close()
         self.__conn = None
-
-    def disconnect(self):
-        """
-        Release memory, if possible
-        Temporarily disable, but do not destroy, an in-memory store
-        """
-        
-        if self.__dbpath == ":memory:":
-            self.__conn_hidden = self.__conn
-        else:
-            self.__conn.close()
-        self.__conn = None
-
-    def reconnect(self):
-        """
-        Restore the object after a disconnect()
-        """
-        if self.__conn_hidden:
-            self.__conn = self.__conn_hidden
-            self.__conn_hidden = None
-        else:
-            self.connect()
 
     def start_bulk_write(self):
         self.__is_within_transaction = True

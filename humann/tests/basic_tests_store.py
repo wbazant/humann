@@ -1147,53 +1147,6 @@ class TestHumannStoreFunctions(unittest.TestCase):
         second_alignments_store.clear()
 
         self.assertEqual(vars(alignments_store), vars(second_alignments_store))
-    def test_Alignments_connect(self):
-        with self.subTest():
-            self._test_Alignments_connect(minimize_memory_use = True)
-            self._test_Alignments_connect(minimize_memory_use = False)
-
-    def _test_Alignments_connect(self, **kwargs):
-        """
-        Alignments class: test disconnect and reconnect
-        Test a disconnected and reconnected store still returns the same hits
-        """
-        with self.subTest("Checking [dis,re]connect", **kwargs):
-            alignments_store=store.Alignments(**kwargs)
-            alignments_store.add("gene2", 1, "Q3", 0.01, "bug1",1)
-            hits=alignments_store.get_hit_list()
-
-            """
-            Disconnect and reconnect works
-            """
-            alignments_store.disconnect()
-            alignments_store.reconnect()
-
-            self.assertEqual(alignments_store.get_hit_list(), hits)
-
-            """
-            Disconnect and reconnect, again, works
-            """
-            alignments_store.disconnect()
-            alignments_store.reconnect()
-
-            self.assertEqual(alignments_store.get_hit_list(), hits)
-
-            """
-            Disconnect and not reconnect raises an exception
-            """
-            alignments_store.disconnect()
-
-            self.assertRaises(BaseException, alignments_store.get_hit_list)
-
-            """
-            Not disconnect and only reconnect works
-            """
-            alignments_store=store.Alignments(**kwargs)
-            alignments_store.add("gene2", 1, "Q3", 0.01, "bug1",1)
-            alignments_store.reconnect()
-
-            self.assertEqual(alignments_store.get_hit_list(), hits)
-
             
     def test_Alignments_bulk(self):
         with self.subTest():
