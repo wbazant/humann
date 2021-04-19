@@ -356,6 +356,9 @@ class Alignments(SqliteStore):
         
         # calculate the score per bug and gene
         # for a single query result, it is 1/a.length
+
+        # Increase page count to four times the default
+        self.do('PRAGMA max_page_count = 4294967292;')
         
         query=None
         try:
